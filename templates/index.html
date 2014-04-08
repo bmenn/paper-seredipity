@@ -1,0 +1,133 @@
+{% extends "layout.html" %}
+{% block remote %}
+<script src='http://d3js.org/d3.v3.min.js'></script>
+<script>
+var $SCRIPT_ROOT = {{ request.script_root|tojson|safe }};
+</script>
+{% endblock %}
+{% block content %}
+<div class="row">
+  <div class="col-md-4">
+    <!-- Search results here -->
+    <!-- TODO: Set href's for links -->
+    <!-- TODO: Use Jinja2 and Flask to dynamic generate search results -->
+    <!-- TODO: Set method type for form -->
+    <div class="panel panel-default">
+      <div class="form-group form-inline panel-heading">
+        <input type=text class="form-control" placeholder="Search for..." name=qs>
+        <button id="go" type=submit class="btn btn-default">Go</button>
+      </div>
+      <span id="results-list" class="list-group"></span>
+    </div>
+  </div>
+  <div class="col-md-7">
+    <!-- Graph here -->
+    <svg style="top:0; left:0; height:300px; width:100%" id="graph"></svg>
+    <div class="panel panel-default">
+      <!-- Details here -->
+      <!-- TODO: Use Jinja2 and Flask dynamically fill publication info -->
+      <div class="panel-heading">Title</div>
+      <ul class="list-group">
+        <li class="list-group-item">Author: </li>
+        <li class="list-group-item">Publication: </li>
+        <li class="list-group-item">Year: </li>
+        <li class="list-group-item">Abstract:
+          <p>Description</p>
+        </li>
+      </ul>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+var nodes = [];
+var links = [];
+
+var svg = d3.select('#graph')
+
+var force = d3.layout.force().
+    nodes(nodes).
+    links(links).
+    gravity(.2);
+
+var node = svg.selectAll('circle');
+var link = svg.selectAll('line');
+
+d3.timer(force.resume)
+force.start();
+
+var esource = new EventSource('/sse');
+// TODO Verify esource.origin for security.
+esource.addEventListener('graph', function(e) {
+  var d = JSON.parse(e.data);
+  nodes.push(d['nodes']);
+  links.push(d['links']);
+  redraw();
+}, false);
+
+esource.addEventListener('search', function(e) {
+  // TODO Parse JSON data.
+  var d = JSON.parse(e.data);
+}, false);
+
+function redraw() {
+  node = nodes.data(nodes);
+  link = links.data(links);
+
+  node.enter().append('circle').
+      attr('class', 'node').
+      attr('r', 10).
+      call(force.drag);
+  link.enter().append('line').
+      style('stroke-width', 2);
+  force.start()
+}
+
+
+function resultHTML(data) {
+  var htmlstr = '';
+  var base = '<a href="#" class="list-group-item result-item" doi="{doi}"><h4 class="list-group-item-heading">{title}</h4><p class="list-group-item-text">{authors} {date}</p></a>'
+  for (var i in data) {
+    var entry = base.replace("{title}", data[i].title + '.').
+        replace("{authors}", data[i].authors + '.').
+        replace("{date}", data[i].date + '.').
+        replace("{doi}", data[i].doi);
+    htmlstr = htmlstr.concat(entry);
+  }
+  return htmlstr;
+}
+
+$(function() {
+  var search_form = function(e) {
+      $.getJSON($SCRIPT_ROOT + "/search", {
+          qs: $('input[name="qs"]').val()
+    }, function(data) {
+      $('#results-list').append(resultHTML(data));
+    });
+  return false;
+  };
+
+  $("button#go").click(search_form);
+  $('input[name="qs"]').bind("keydown", function(e) {
+    if (e.keyCode == 13) {
+      search_form(e);
+    }
+  });
+
+  $("#results-list").on("click", ".result-item", function(e) {
+    var doi = $(this).attr("doi");
+    $.ajax({
+      type: 'POST',
+      url: $SCRIPT_ROOT + "/api/node",
+      data: JSON.stringify({"doi": doi}),
+      contentType: "application/json",
+      success: function(data) {
+        nodes.push(data);
+        redraw();
+      }
+    });
+  });
+});
+</script>
+{% endblock %}
