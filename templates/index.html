@@ -72,15 +72,13 @@ esource.addEventListener('search', function(e) {
 }, false);
 
 function redraw() {
-  node = nodes.data(nodes);
-  link = links.data(links);
+  node = svg.selectAll('.node').
+      data(nodes, function(d) {return d.doi;});
 
   node.enter().append('circle').
       attr('class', 'node').
       attr('r', 10).
       call(force.drag);
-  link.enter().append('line').
-      style('stroke-width', 2);
   force.start()
 }
 
@@ -123,7 +121,8 @@ $(function() {
       data: JSON.stringify({"doi": doi}),
       contentType: "application/json",
       success: function(data) {
-        nodes.push(data);
+        var json = JSON.parse(data)
+        nodes.push(json);
         redraw();
       }
     });
