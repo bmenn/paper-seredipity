@@ -22,7 +22,7 @@ var $SCRIPT_ROOT = {{ request.script_root|tojson|safe }};
   </div>
   <div class="col-md-7">
     <!-- Graph here -->
-    <svg style="top:0; left:0; height:300px; width:100%" id="graph"></svg>
+    <svg style="top:0; left:0; height:300px; width:100%;" id="graph"></svg>
     <div class="panel panel-default">
       <!-- Details here -->
       <!-- TODO: Use Jinja2 and Flask dynamically fill publication info -->
@@ -44,9 +44,15 @@ var $SCRIPT_ROOT = {{ request.script_root|tojson|safe }};
 var nodes = [];
 var links = [];
 
-var svg = d3.select('#graph')//attr for width and height
+var width= $('.graph').width();
 
-var force = d3.layout.force();
+var svg = d3.select('#graph');//attr for width and height
+
+var force = d3.layout.force().size([width,300])
+.nodes(nodes)
+.linkDistance(1)
+.charge(-500)
+.on("tick", tick);
 
 var node = svg.selectAll('circle');
 var link = svg.selectAll('line');
@@ -66,7 +72,7 @@ esource.addEventListener('search', function(e) {
 }, false);
 
 function redraw() {
-  node = svg.selectAll('.node').
+  node = node.
       data(nodes, function(d) {return d.doi;});
 
   node.enter().append('svg:circle').
@@ -75,26 +81,24 @@ function redraw() {
       call(force.drag);
 	node.exit().remove();
 
-   link = svg.selectAll('line').
+   link = link.
 	data(links).enter().append('line').
 	attr('class','link');
-	link.exit().remove();
+
 	
-	force.on("tick", function() {
-
-    node.attr("transform", function(d) { return "translate(" + d.x + "," + d.y         + ")"; });
-
-    link.attr("x1", function(d) { return d.source.x; })
-          .attr("y1", function(d) { return d.source.y; })
-          .attr("x2", function(d) { return d.target.x; })
-          .attr("y2", function(d) { return d.target.y; });
-    });
-  force.gravity(.05)
-  .distance(50)
-  .linkDistance(50)
-  .size([300,300])
-  .start();
+	
+  force.start();
 }
+
+function tick() {
+          link.attr("x1", function(d) { return Math.round(d.source.x); })
+              .attr("y1", function(d) { return Math.round(d.source.y); })
+              .attr("x2", function(d) { return Math.round(d.target.x); })
+              .attr("y2", function(d) { return Math.round(d.target.y); });
+
+          node.attr("cx", function(d) { return Math.round(d.x); })
+              .attr("cy", function(d) { return Math.round(d.y); });
+        }
 
 
 function resultHTML(data) {
@@ -129,7 +133,7 @@ $(function() {
 
   $("#results-list").on("click", ".result-item", function(e) {
     var doi = $(this).attr("doi");
-    $.ajax({
+    $.ajax({    //When i try to compile the code this it says internal server error 500 and points to this line
       type: 'POST',
       url: $SCRIPT_ROOT + "/api/node",
       data: JSON.stringify({"doi": doi}),
