@@ -1,14 +1,17 @@
+import json
 from flask import Response, render_template, request, abort
 from gevent.wsgi import WSGIServer
 from gevent.queue import Queue
-import json
+import networkx as nx
 import scraper
 from settings import app
 
 
 sse_connections = []
 count = 0
-nodes = []
+graph = nx.DiGraph()
+nodes = {}
+links = []
 
 
 class Node():
@@ -36,13 +39,29 @@ class ServerSentEvent(object):
         return "%s\n\n" % "\n".join(lines)
 
 
+def add_node(node):
+    graph.add_node(node['id'],
+                   abstract=node['abstract'],
+                   authors=node['authors'],
+                   date=node['date'],
+                   title=node['title']
+                   )
+
+    for c in node['citations']:
+        graph.add_edge(node['id'], c, weight=1)
+    for c in node['cited by']:
+        graph.add_edge(c, node['id'], weight=1)
+
+
 @app.route('/api/node', methods=['POST'])
 def create_node():
     if not request.json or not 'doi' in request.json:
         abort(400)
-    docinfo = scraper.fetch(request.json['doi'])
 
-    return json.dumps(docinfo, separators=(',', ':')), 201
+    node = scraper.fetch(request.json['doi'])
+    add_node(node)
+
+    return json.dumps(node, separators=(',', ':')), 201
 
 
 @app.route('/debug')

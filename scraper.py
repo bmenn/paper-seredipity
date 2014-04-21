@@ -54,7 +54,15 @@ def parse_div_result(url, limit=0):
                         'rank': rank
                         })
 
-    return results
+    if limit > 10:
+        next_url = ("http://citeseerx.ist.psu.edu"
+                    + page.select('#pager')[0].a['href'])
+        results.extend(parse_div_result(next_url, limit=limit - 10))
+
+    if limit == 0:
+        return results
+    else:
+        return results[:limit]
 
 
 def parse_summary(url):
@@ -125,6 +133,7 @@ def parse_summary(url):
 def get_query_values(url):
     o = urlparse.urlparse(url)
     return urlparse.parse_qs(o.query)
+
 
 def search(q):
     url = "http://citeseerx.ist.psu.edu/search?q="

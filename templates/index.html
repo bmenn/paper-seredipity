@@ -44,7 +44,7 @@ var $SCRIPT_ROOT = {{ request.script_root|tojson|safe }};
 var nodes = [];
 var links = [];
 
-var width= $('.graph').width();
+var width= $('#graph').width();
 
 var svg = d3.select('#graph');//attr for width and height
 
@@ -73,11 +73,12 @@ esource.addEventListener('search', function(e) {
 
 function redraw() {
   node = node.
-      data(nodes, function(d) {return d.doi;});
+      data(nodes);
 
   node.enter().append('svg:circle').
       attr('class', 'node').
       attr('r', 10).
+      attr('id', function(d) { return d.id; }).
       call(force.drag);
 	node.exit().remove();
 
@@ -133,7 +134,7 @@ $(function() {
 
   $("#results-list").on("click", ".result-item", function(e) {
     var doi = $(this).attr("doi");
-    $.ajax({    //When i try to compile the code this it says internal server error 500 and points to this line
+    $.ajax({
       type: 'POST',
       url: $SCRIPT_ROOT + "/api/node",
       data: JSON.stringify({"doi": doi}),
