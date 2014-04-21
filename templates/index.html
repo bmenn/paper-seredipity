@@ -59,17 +59,11 @@ var link = svg.selectAll('line');
 
 var esource = new EventSource('/sse');
 // TODO Verify esource.origin for security.
-esource.addEventListener('graph', function(e) {
-  var d = JSON.parse(e.data);
-  nodes.push(d['nodes']);
-  links.push(d['links']);
+esource.onmessage = function(e) {
+  var d = JSON.parse(e.data)
+  nodes.push(d);
   redraw();
-}, false);
-
-esource.addEventListener('search', function(e) {
-  // TODO Parse JSON data.
-  var d = JSON.parse(e.data);
-}, false);
+};
 
 function redraw() {
   node = node.
@@ -138,12 +132,7 @@ $(function() {
       type: 'POST',
       url: $SCRIPT_ROOT + "/api/node",
       data: JSON.stringify({"doi": doi}),
-      contentType: "application/json",
-      success: function(data) {
-        var json = JSON.parse(data)
-        nodes.push(json);
-        redraw();
-      }
+      contentType: "application/json"
     });
   });
 });

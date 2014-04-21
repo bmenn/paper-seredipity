@@ -139,6 +139,6 @@ def search(q):
     url = "http://citeseerx.ist.psu.edu/search?q="
     url += q.replace(" ", "+")
 
-    results = parse_div_result(url)
+    results = parse_div_result(url, limit=5)
 
     return results
