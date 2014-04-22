@@ -1,59 +1,63 @@
-import time
 import json
-from flask import Response, render_template, request, abort
 import gevent
-from gevent.wsgi import WSGIServer
-from gevent.queue import Queue
+from flask import render_template, request
+from flask.ext.socketio import SocketIO, emit
 import networkx as nx
 import scraper
 from settings import app
 
 
-sse_connections = []
-count = 0
+socketio = SocketIO(app)
 graph = nx.DiGraph()
-nodes = []
-links = []
 
 
-def add_node(node):
-    global nodes
-    print "Node added!"
-    graph.add_node(node['id'],
-                   abstract=node['abstract'],
-                   authors=node['authors'],
-                   date=node['date'],
-                   title=node['title']
-                   )
+@socketio.on('add_node', namespace='/socket')
+def on_add_node(msg):
+    g = gevent.spawn(scraper.fetch, msg)
+    g.join()    # Wait to Greenlet finishes
+
+    node = g.value
+    graph.add_node(node['id'])
+    emit('add_node', {'id': node['id'],
+                      'abstract': node['abstract'],
+                      'authors': node['authors'],
+                      'date': node['date'],
+                      'title': node['title']
+                      })
 
     for c in node['citations']:
-        graph.add_edge(node['id'], c, weight=1)
+        gevent.sleep(0)
+        graph.add_edge(node['id'], c)
+        if c[:4] == 'doi:':
+            cinfo = scraper.fetch(c[4:])
+            emit('add_node', {'id': cinfo['id'],
+                              'abstract': cinfo['abstract'],
+                              'authors': cinfo['authors'],
+                              'date': cinfo['date'],
+                              'title': cinfo['title']})
+        else:
+            emit('add_node', {'id': c})
+        emit('add_link',
+             {'source': node['id'],
+              'target': c,
+              'value': 1})
+
     for c in node['cited by']:
-        graph.add_edge(c, node['id'], weight=1)
-
-    nodes.append({'id': node['id'],
-                  'abstract': node['abstract'],
-                  'authors': node['authors'],
-                  'date': node['date'],
-                  'title': node['title']
-                  })
-
-
-@app.route('/api/node', methods=['POST'])
-def create_node():
-    if not request.json or not 'doi' in request.json:
-        abort(400)
-
-    node = scraper.fetch(request.json['doi'])
-    add_node(node)
-
-    return json.dumps(node, separators=(',', ':')), 201
-
-
-@app.route('/debug')
-def debug():
-    global count
-    return "Pushed %d SSEs" % count
+        gevent.sleep(0)
+        graph.add_edge(c, node['id'])
+        if c[:4] == 'doi:':
+            cinfo = scraper.fetch(c[4:])
+            emit('add_node', {'id': cinfo['id'],
+                              'abstract': cinfo['abstract'],
+                              'authors': cinfo['authors'],
+                              'date': cinfo['date'],
+                              'title': cinfo['title']})
+        else:
+            emit('add_node', {'id': c})
+        emit('add_link',
+             {'source': c,
+              'target': node['id'],
+              'value': 1})
 
 
 @app.route('/search')
@@ -68,26 +72,5 @@ def start_app():
     return render_template('index.html')
 
 
-@app.route('/sse')
-def sse_request():
-    def event_stream():
-        global count
-        global nodes
-        global links
-        while True:
-            gevent.sleep(0)
-            try:
-                n = nodes.pop(0)
-                yield "data: %s\n\n" % json.dumps(n, separators=(',', ':'))
-            except (IndexError, GeneratorExit):
-                pass
-            else:
-                print "Created SSE"
-                count = count + 1
-
-    return Response(event_stream(), mimetype='text/event-stream')
-
-
 if __name__ == '__main__':
-    server = WSGIServer(("", 5000), app)
-    server.serve_forever()
+    socketio.run(app)

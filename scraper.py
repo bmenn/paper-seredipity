@@ -1,13 +1,14 @@
 from bs4 import BeautifulSoup
 import urllib2
 import urlparse
+import gevent
 
 
-def fetch(doi):
+def fetch(doi, get_citations=True):
     url = "http://citeseerx.ist.psu.edu/viewdoc/summary?doi="
     url += doi
 
-    doc = parse_summary(url)
+    doc = parse_summary(url, get_citations)
     doc.update({'doi': doi,
                 'id': 'doi:' + doi})
 
@@ -21,6 +22,7 @@ def parse_div_result(url, limit=0):
     results = []
 
     for d in divs:
+        gevent.sleep(0)
         title_html = d.h3.a.stripped_strings
         authors_html = d.select('.authors')
         date_html = d.select('.pubyear')
@@ -65,8 +67,18 @@ def parse_div_result(url, limit=0):
         return results[:limit]
 
 
-def parse_summary(url):
-    page = BeautifulSoup(urllib2.urlopen(url).read())
+def parse_summary(url, get_citations=True):
+    summary = {'abstract': 'Not available',
+               'authors': 'Not available',
+               'date': 'Not available',
+               'title': 'Not available',
+               'citations': [],
+               'cited by': []
+               }
+    try:
+        page = BeautifulSoup(urllib2.urlopen(url).read())
+    except urllib2.HTTPError:
+        return summary
 
     abstract_html = page.find('meta', attrs={'name': 'description'})
     title_html = page.find('meta', attrs={'name': 'citation_title'})
@@ -75,59 +87,45 @@ def parse_summary(url):
     citation_html = page.select('#citations a')
     cited_by_link = page.find('a', attrs={'title': 'number of citations'})
 
-    citations = []
-    cited_by = []
-
     if abstract_html:
-        abstract = abstract_html['content'].strip()
-    else:
-        abstract = ''
+        summary['abstract'] = abstract_html['content'].strip()
     if title_html:
-        title = title_html['content'].strip()
-    else:
-        title = ''
+        summary['title'] = title_html['content'].strip()
     if authors_html:
-        authors = authors_html['content'].strip()
-    else:
-        authors = ''
+        summary['authors'] = authors_html['content'].strip()
     if date_html:
-        date = date_html['content'].strip()
-    else:
-        date = ''
+        summary['date'] = date_html['content'].strip()
 
-    for e in citation_html:
-        if ('class' in e.attrs) and ('citation_only' in e['class']):
-            # Publication is not in CiteSeerX. Stuck with cid for identifier
-            start_ind = e['href'].find('cid=')
-            if start_ind != -1:
-                citations.append(e['href'][start_ind:].replace('=', ':'))
+    if get_citations:
+        for e in citation_html:
+            gevent.sleep(0)
+            if ('class' in e.attrs) and ('citation_only' in e['class']):
+                # Publication is not in CiteSeerX. Stuck with cid for identifier
+                start_ind = e['href'].find('cid=')
+                if start_ind != -1:
+                    summary['citations'].append(e['href'][start_ind:].replace('=', ':'))
+                else:
+                    continue
             else:
-                continue
-        else:
-            # cid is useless for retrieving publication metadata
-            # Get the redirect url and scape it out
-            cite_url = "http://citeseerx.ist.psu.edu" + e['href']
-            redirect_url = urllib2.urlopen(cite_url).geturl()
+                # cid is useless for retrieving publication metadata
+                # Get the redirect url and scape it out
+                cite_url = "http://citeseerx.ist.psu.edu" + e['href']
+                redirect_url = urllib2.urlopen(cite_url).geturl()
 
-            query_values = get_query_values(redirect_url)
+                query_values = get_query_values(redirect_url)
 
-            if 'doi' in query_values:
-                citations.append(query_values['doi'][0].replace('=', ':'))
-            else:
-                continue
+                if 'doi' in query_values:
+                    summary['citations'].append('doi:' + query_values['doi'][0])
+                else:
+                    continue
 
-    cited_by_results = parse_div_result('http://citeseerx.ist.psu.edu'
-                                        + cited_by_link['href'])
-    for e in cited_by_results:
-        cited_by.append('doi:' + e['doi'])
+        if not (cited_by_link is None):
+            cited_by_results = parse_div_result('http://citeseerx.ist.psu.edu'
+                                                + cited_by_link['href'])
+            for e in cited_by_results:
+                summary['cited by'].append('doi:' + e['doi'])
 
-    return {'abstract': abstract,
-            'title': title,
-            'authors': authors,
-            'date': date,
-            'citations': citations,
-            'cited by': cited_by
-            }
+    return summary
 
 
 def get_query_values(url):

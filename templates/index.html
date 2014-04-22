@@ -1,6 +1,7 @@
 {% extends "layout.html" %}
 {% block remote %}
-<script src='http://d3js.org/d3.v3.min.js'></script>
+<script src="//cdnjs.cloudflare.com/ajax/libs/d3/3.4.5/d3.min.js"></script>
+<script src="//cdnjs.cloudflare.com/ajax/libs/socket.io/0.9.16/socket.io.min.js"></script>
 <script>
 var $SCRIPT_ROOT = {{ request.script_root|tojson|safe }};
 </script>
@@ -69,28 +70,27 @@ var force = d3.layout.force().size([width,300])
 
 var node = svg.selectAll('circle');
 var link = svg.selectAll('line');
+
 redraw();
-svg.style("opacity", 1e-6)
-    .transition()
-      .duration(1000)
-      .style("opacity", 1);
-var esource = new EventSource('/sse');
-// TODO Verify esource.origin for security.
-esource.onmessage = function(e) {
-  var d = JSON.parse(e.data)
-  nodes.push(d);
-  redraw();
-};
+svg.style("opacity", 1e-6).
+   transition().
+   duration(1000).
+   style("opacity", 1);
 
 function rezoom() {
-  console.log("here", d3.event.translate, d3.event.scale);
   svg.attr("transform",
       "translate(" + d3.event.translate + ")"
       + " scale(" + d3.event.scale + ")");
 }
+
 function redraw() {
-  node = node.
-      data(nodes);
+  node = node.data(nodes);
+  link = link.data(links);
+
+  link.enter().append('svg:line').
+      attr('class','link').
+      style("stroke", 'blue').
+      style("stroke-opacity", .6);
 
   node.enter().append('svg:circle').
       attr('class', 'node').
@@ -99,22 +99,14 @@ function redraw() {
       call(force.drag);
 	node.exit().remove();
 
-   link = link.
-	data(links).enter().append('svg:line').
-	attr('class','link').
-	style("stroke", 'blue').
-	style("stroke-opacity", .6);
-
-	
-	
   force.start();
 }
 
 function tick() {
-          link.attr("x1", function(d) { return (d.source.x); })
-              .attr("y1", function(d) { return (d.source.y); })
-              .attr("x2", function(d) { return (d.target.x); })
-              .attr("y2", function(d) { return (d.target.y); });
+          link.attr("x1", function(d) { return Math.round(d.source.x); }).
+               attr("y1", function(d) { return Math.round(d.source.y); }).
+               attr("x2", function(d) { return Math.round(d.target.x); }).
+               attr("y2", function(d) { return Math.round(d.target.y); });
 
           node.attr("cx", function(d) { return (d.x); })
               .attr("cy", function(d) { return (d.y); });
@@ -123,7 +115,7 @@ function tick() {
 
 function resultHTML(data) {
   var htmlstr = '';
-  var base = '<a href="#" class="list-group-item result-item" doi="{doi}"><h4 class="list-group-item-heading">{title}</h4><p class="list-group-item-text">{authors} {date}</p></a>'
+  var base = '<a class="list-group-item result-item" doi="{doi}"><h4 class="list-group-item-heading">{title}</h4><p class="list-group-item-text">{authors} {date}</p></a>'
   for (var i in data) {
     var entry = base.replace("{title}", data[i].title + '.').
         replace("{authors}", data[i].authors + '.').
@@ -134,7 +126,26 @@ function resultHTML(data) {
   return htmlstr;
 }
 
+function findNodeIndex(id) {
+  for (var i in nodes) {
+    if (nodes[i]["id"] == id)
+      return nodes[i];
+  }
+}
+
 $(function() {
+  var socket = io.connect("http://" + document.domain + ":" + location.port
+    + "/socket");
+  socket.on('add_node', function(d) {
+    nodes.push(d);
+  });
+  socket.on('add_link', function(d) {
+    links.push({"source": findNodeIndex(d.source),
+      "target": findNodeIndex(d.target),
+      "value": d.value});
+    redraw();
+  });
+
   var search_form = function(e) {
       $.getJSON($SCRIPT_ROOT + "/search", {
           qs: $('input[name="qs"]').val()
@@ -152,13 +163,7 @@ $(function() {
   });
 
   $("#results-list").on("click", ".result-item", function(e) {
-    var doi = $(this).attr("doi");
-    $.ajax({
-      type: 'POST',
-      url: $SCRIPT_ROOT + "/api/node",
-      data: JSON.stringify({"doi": doi}),
-      contentType: "application/json"
-    });
+    socket.emit("add_node", $(this).attr("doi"));
   });
 });
 </script>
