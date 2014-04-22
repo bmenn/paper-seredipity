@@ -24,13 +24,16 @@ var $SCRIPT_ROOT = {{ request.script_root|tojson|safe }};
     <svg style='top:0; left:0; height:300px; width:100%;' id='graph'></svg>
     <div class='panel panel-default'>
       <!-- TODO: Use Jinja2 and Flask dynamically fill publication info -->
-      <div class='panel-heading'>Title</div>
+      <div class='panel-heading' id='info-title'></div>
       <ul class='list-group'>
-        <li class='list-group-item'>Author: </li>
-        <li class='list-group-item'>Publication: </li>
-        <li class='list-group-item'>Year: </li>
-        <li class='list-group-item'>Abstract:
-          <p>Description</p>
+        <li class='list-group-item' id='info-authors'>Author:
+          <span></span>
+        </li>
+        <li class='list-group-item' id='info-date'>Year: 
+          <span></span>
+        </li>
+        <li class='list-group-item' id='info-abstract'>Abstract: 
+          <p><span></span></p>
         </li>
       </ul>
     </div>
@@ -122,45 +125,54 @@ function resultHTML(data) {
   return htmlstr;
 }
 
-function findNodeIndex(id) {
+function findNode(id) {
   for (var i in nodes) {
     if (nodes[i]['id'] == id)
       return nodes[i];
   }
 }
 
-$(function() {
-  var socket = io.connect('http://' + document.domain + ':' + location.port
-    + '/socket');
-  socket.on('add_node', function(d) {
-    nodes.push(d);
-  });
-  socket.on('add_link', function(d) {
-    links.push({'source': findNodeIndex(d.source),
-      'target': findNodeIndex(d.target),
-      'value': d.value});
-    redraw();
-  });
+var socket = io.connect('http://' + document.domain + ':' + location.port
+  + '/socket');
 
-  var search_form = function(e) {
-      $.getJSON($SCRIPT_ROOT + '/search', {
-          qs: $('input[name="qs"]').val()
-    }, function(data) {
-      $('#results-list').append(resultHTML(data));
-    });
-  return false;
-  };
+socket.on('add_node', function(d) {
+  nodes.push(d);
+});
 
-  $('button#go').click(search_form);
-  $('input[name="qs"]').bind('keydown', function(e) {
-    if (e.keyCode == 13) {
-      search_form(e);
-    }
-  });
+socket.on('add_link', function(d) {
+  links.push({'source': findNode(d.source),
+    'target': findNode(d.target),
+    'value': d.value});
+  redraw();
+});
 
-  $('#results-list').on('click', '.result-item', function(e) {
-    socket.emit('add_node', $(this).attr('doi'));
+
+var search_form = function(e) {
+    $.getJSON($SCRIPT_ROOT + '/search', {
+        qs: $('input[name="qs"]').val()
+  }, function(data) {
+    $('#results-list').append(resultHTML(data));
   });
+return false;
+};
+
+$('button#go').click(search_form);
+$('input[name="qs"]').bind('keydown', function(e) {
+  if (e.keyCode == 13) {
+    search_form(e);
+  }
+});
+
+$('#results-list').on('click', '.result-item', function(e) {
+  socket.emit('add_node', $(this).attr('doi'));
+});
+
+$('#graph').on('click', '.node', function(e) {
+    var n = findNode(this.id);
+    $('#info-title').text(n.title);
+    $('#info-authors span').text(n.authors);
+    $('#info-date span').text(n.date);
+    $('#info-abstract span').text(n.abstract);
 });
 </script>
 {% endblock %}
