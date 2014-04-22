@@ -50,13 +50,14 @@ var svg = d3.select('#graph');//attr for width and height
 
 var force = d3.layout.force().size([width,300])
 .nodes(nodes)
-.linkDistance(1)
+.links(links)
+.linkDistance(70)
 .charge(-500)
 .on("tick", tick);
 
 var node = svg.selectAll('circle');
 var link = svg.selectAll('line');
-
+redraw();
 var esource = new EventSource('/sse');
 // TODO Verify esource.origin for security.
 esource.onmessage = function(e) {
@@ -77,8 +78,10 @@ function redraw() {
 	node.exit().remove();
 
    link = link.
-	data(links).enter().append('line').
-	attr('class','link');
+	data(links).enter().append('svg:line').
+	attr('class','link').
+	style("stroke", 'blue').
+	style("stroke-opacity", .6);
 
 	
 	
@@ -86,13 +89,13 @@ function redraw() {
 }
 
 function tick() {
-          link.attr("x1", function(d) { return Math.round(d.source.x); })
-              .attr("y1", function(d) { return Math.round(d.source.y); })
-              .attr("x2", function(d) { return Math.round(d.target.x); })
-              .attr("y2", function(d) { return Math.round(d.target.y); });
+          link.attr("x1", function(d) { return (d.source.x); })
+              .attr("y1", function(d) { return (d.source.y); })
+              .attr("x2", function(d) { return (d.target.x); })
+              .attr("y2", function(d) { return (d.target.y); });
 
-          node.attr("cx", function(d) { return Math.round(d.x); })
-              .attr("cy", function(d) { return Math.round(d.y); });
+          node.attr("cx", function(d) { return (d.x); })
+              .attr("cy", function(d) { return (d.y); });
         }
 
 
