@@ -12,21 +12,36 @@ graph = nx.DiGraph()
 
 
 @socketio.on('add_node', namespace='/socket')
-def on_add_node(msg):
-    g = gevent.spawn(scraper.fetch, msg)
+def on_add_node(doi):
+    g = gevent.spawn(scraper.fetch, doi)
     g.join()    # Wait to Greenlet finishes
 
     node = g.value
-    graph.add_node(node['id'])
-    emit('add_node', {'id': node['id'],
-                      'abstract': node['abstract'],
-                      'authors': node['authors'],
-                      'date': node['date'],
-                      'title': node['title']
-                      })
+    if not graph.has_node(node['id']):
+        graph.add_node(node['id'])
+        emit('add_node', {'id': node['id'],
+                          'abstract': node['abstract'],
+                          'authors': node['authors'],
+                          'date': node['date'],
+                          'title': node['title']
+                          })
+    get_refs(node)
 
+
+@socketio.on('add_links', namespace='/socket')
+def on_add_links(doi):
+    g = gevent.spawn(scraper.fetch, doi[4:])
+    g.join()    # Wait to Greenlet finishes
+
+    node = g.value
+    get_refs(node)
+
+
+def get_refs(node):
     for c in node['citations']:
         gevent.sleep(0)
+        if graph.has_edge(node['id'], c):
+            continue
         graph.add_edge(node['id'], c)
         if c[:4] == 'doi:':
             cinfo = scraper.fetch(c[4:])
@@ -44,6 +59,8 @@ def on_add_node(msg):
 
     for c in node['cited by']:
         gevent.sleep(0)
+        if graph.has_edge(c, node['id']):
+            continue
         graph.add_edge(c, node['id'])
         if c[:4] == 'doi:':
             cinfo = scraper.fetch(c[4:])

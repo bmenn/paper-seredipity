@@ -65,8 +65,8 @@ var svg = d3.select('#graph').
 var force = d3.layout.force().size([width,300]).
     nodes(nodes).
     links(links).
-    linkDistance(10).
-    charge(-500).
+    linkDistance(20).
+    charge(-300).
     on('tick', tick);
 
 var container = svg.append('g');
@@ -173,6 +173,11 @@ $('#graph').on('click', '.node', function(e) {
     $('#info-authors span').text(n.authors);
     $('#info-date span').text(n.date);
     $('#info-abstract span').text(n.abstract);
+});
+$('#graph').on('dblclick', '.node', function(e) {
+    if (this.id.indexOf('doi:') == 0) {
+      socket.emit('add_links', this.id);
+    }
 });
 </script>
 {% endblock %}
