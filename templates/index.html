@@ -46,7 +46,19 @@ var links = [];
 
 var width= $('#graph').width();
 
-var svg = d3.select('#graph');//attr for width and height
+var svg = d3.select('#graph').
+append('svg:svg')
+.attr("width",width)
+.attr("height",300).
+attr("pointer-events","all")
+.append('svg:g').
+call(d3.behavior.zoom().on("zoom",rezoom))
+.append('svg:svg');
+
+svg.append('svg:rect')
+.attr('width', width)
+.attr('height', 300)
+.attr('fill','white');
 
 var force = d3.layout.force().size([width,300])
 .nodes(nodes)
@@ -58,6 +70,10 @@ var force = d3.layout.force().size([width,300])
 var node = svg.selectAll('circle');
 var link = svg.selectAll('line');
 redraw();
+svg.style("opacity", 1e-6)
+    .transition()
+      .duration(1000)
+      .style("opacity", 1);
 var esource = new EventSource('/sse');
 // TODO Verify esource.origin for security.
 esource.onmessage = function(e) {
@@ -66,6 +82,12 @@ esource.onmessage = function(e) {
   redraw();
 };
 
+function rezoom() {
+  console.log("here", d3.event.translate, d3.event.scale);
+  svg.attr("transform",
+      "translate(" + d3.event.translate + ")"
+      + " scale(" + d3.event.scale + ")");
+}
 function redraw() {
   node = node.
       data(nodes);
