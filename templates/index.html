@@ -1,38 +1,35 @@
-{% extends "layout.html" %}
+{% extends 'layout.html' %}
 {% block remote %}
-<script src="//cdnjs.cloudflare.com/ajax/libs/d3/3.4.5/d3.min.js"></script>
-<script src="//cdnjs.cloudflare.com/ajax/libs/socket.io/0.9.16/socket.io.min.js"></script>
+<script src='//cdnjs.cloudflare.com/ajax/libs/d3/3.4.5/d3.min.js'></script>
+<script src='//cdnjs.cloudflare.com/ajax/libs/socket.io/0.9.16/socket.io.min.js'></script>
 <script>
 var $SCRIPT_ROOT = {{ request.script_root|tojson|safe }};
 </script>
 {% endblock %}
 {% block content %}
-<div class="row">
-  <div class="col-md-4">
-    <!-- Search results here -->
+<div class='row'>
+  <div class='col-md-4'>
     <!-- TODO: Set href's for links -->
     <!-- TODO: Use Jinja2 and Flask to dynamic generate search results -->
     <!-- TODO: Set method type for form -->
-    <div class="panel panel-default">
-      <div class="form-group form-inline panel-heading">
-        <input type=text class="form-control" placeholder="Search for..." name=qs>
-        <button id="go" type=submit class="btn btn-default">Go</button>
+    <div class='panel panel-default'>
+      <div class='form-group form-inline panel-heading'>
+        <input type=text class='form-control' placeholder='Search for...' name=qs>
+        <button id='go' type=submit class='btn btn-default'>Go</button>
       </div>
-      <span id="results-list" class="list-group"></span>
+      <span id='results-list' class='list-group'></span>
     </div>
   </div>
-  <div class="col-md-7">
-    <!-- Graph here -->
-    <svg style="top:0; left:0; height:300px; width:100%;" id="graph"></svg>
-    <div class="panel panel-default">
-      <!-- Details here -->
+  <div class='col-md-7'>
+    <svg style='top:0; left:0; height:300px; width:100%;' id='graph'></svg>
+    <div class='panel panel-default'>
       <!-- TODO: Use Jinja2 and Flask dynamically fill publication info -->
-      <div class="panel-heading">Title</div>
-      <ul class="list-group">
-        <li class="list-group-item">Author: </li>
-        <li class="list-group-item">Publication: </li>
-        <li class="list-group-item">Year: </li>
-        <li class="list-group-item">Abstract:
+      <div class='panel-heading'>Title</div>
+      <ul class='list-group'>
+        <li class='list-group-item'>Author: </li>
+        <li class='list-group-item'>Publication: </li>
+        <li class='list-group-item'>Year: </li>
+        <li class='list-group-item'>Abstract:
           <p>Description</p>
         </li>
       </ul>
@@ -46,53 +43,52 @@ var nodes = [];
 var links = [];
 
 var width= $('#graph').width();
+var height = $('#graph').height();
+
+var x = d3.scale.linear().
+    domain([0, width]).
+    range([0, width]);
+
+var y = d3.scale.linear().
+    domain([0, height]).
+    range([0, height]);
 
 var svg = d3.select('#graph').
-append('svg:svg')
-.attr("width",width)
-.attr("height",300).
-attr("pointer-events","all")
-.append('svg:g').
-call(d3.behavior.zoom().on("zoom",rezoom))
-.append('svg:svg');
+    attr('width',width).
+    attr('height',height).
+    attr('pointer-events','all').
+    call(d3.behavior.zoom().scaleExtent([0.25, 1]).on('zoom',rezoom));
 
-svg.append('svg:rect')
-.attr('width', width)
-.attr('height', 300)
-.attr('fill','white');
+var force = d3.layout.force().size([width,300]).
+    nodes(nodes).
+    links(links).
+    linkDistance(10).
+    charge(-500).
+    on('tick', tick);
 
-var force = d3.layout.force().size([width,300])
-.nodes(nodes)
-.links(links)
-.linkDistance(70)
-.charge(-500)
-.on("tick", tick);
+var container = svg.append('g');
 
-var node = svg.selectAll('circle');
-var link = svg.selectAll('line');
+var link = container.append('g').selectAll('line');
+var node = container.append('g').selectAll('circle');
 
-redraw();
-svg.style("opacity", 1e-6).
-   transition().
-   duration(1000).
-   style("opacity", 1);
-
+function transform(d) {
+     return 'translate(' + d3.event.translate  + ')scale('
+        + d3.event.scale + ')';
+}
 function rezoom() {
-  svg.attr("transform",
-      "translate(" + d3.event.translate + ")"
-      + " scale(" + d3.event.scale + ")");
+  container.attr('transform', transform);
 }
 
 function redraw() {
   node = node.data(nodes);
   link = link.data(links);
 
-  link.enter().append('svg:line').
+  link.enter().append('line').
       attr('class','link').
-      style("stroke", 'blue').
-      style("stroke-opacity", .6);
+      attr('stroke', '#999');
+  link.exit().remove();
 
-  node.enter().append('svg:circle').
+  node.enter().append('circle').
       attr('class', 'node').
       attr('r', 10).
       attr('id', function(d) { return d.id; }).
@@ -103,24 +99,24 @@ function redraw() {
 }
 
 function tick() {
-          link.attr("x1", function(d) { return Math.round(d.source.x); }).
-               attr("y1", function(d) { return Math.round(d.source.y); }).
-               attr("x2", function(d) { return Math.round(d.target.x); }).
-               attr("y2", function(d) { return Math.round(d.target.y); });
+          link.attr('x1', function(d) { return Math.round(d.source.x); }).
+               attr('y1', function(d) { return Math.round(d.source.y); }).
+               attr('x2', function(d) { return Math.round(d.target.x); }).
+               attr('y2', function(d) { return Math.round(d.target.y); });
 
-          node.attr("cx", function(d) { return (d.x); })
-              .attr("cy", function(d) { return (d.y); });
+          node.attr('cx', function(d) { return (d.x); })
+              .attr('cy', function(d) { return (d.y); });
         }
 
 
 function resultHTML(data) {
   var htmlstr = '';
-  var base = '<a class="list-group-item result-item" doi="{doi}"><h4 class="list-group-item-heading">{title}</h4><p class="list-group-item-text">{authors} {date}</p></a>'
+  var base = "<a class='list-group-item result-item' doi='{doi}'><h4 class='list-group-item-heading'>{title}</h4><p class='list-group-item-text'>{authors} {date}</p></a>";
   for (var i in data) {
-    var entry = base.replace("{title}", data[i].title + '.').
-        replace("{authors}", data[i].authors + '.').
-        replace("{date}", data[i].date + '.').
-        replace("{doi}", data[i].doi);
+    var entry = base.replace('{title}', data[i].title + '.').
+        replace('{authors}', data[i].authors + '.').
+        replace('{date}', data[i].date + '.').
+        replace('{doi}', data[i].doi);
     htmlstr = htmlstr.concat(entry);
   }
   return htmlstr;
@@ -128,26 +124,26 @@ function resultHTML(data) {
 
 function findNodeIndex(id) {
   for (var i in nodes) {
-    if (nodes[i]["id"] == id)
+    if (nodes[i]['id'] == id)
       return nodes[i];
   }
 }
 
 $(function() {
-  var socket = io.connect("http://" + document.domain + ":" + location.port
-    + "/socket");
+  var socket = io.connect('http://' + document.domain + ':' + location.port
+    + '/socket');
   socket.on('add_node', function(d) {
     nodes.push(d);
   });
   socket.on('add_link', function(d) {
-    links.push({"source": findNodeIndex(d.source),
-      "target": findNodeIndex(d.target),
-      "value": d.value});
+    links.push({'source': findNodeIndex(d.source),
+      'target': findNodeIndex(d.target),
+      'value': d.value});
     redraw();
   });
 
   var search_form = function(e) {
-      $.getJSON($SCRIPT_ROOT + "/search", {
+      $.getJSON($SCRIPT_ROOT + '/search', {
           qs: $('input[name="qs"]').val()
     }, function(data) {
       $('#results-list').append(resultHTML(data));
@@ -155,15 +151,15 @@ $(function() {
   return false;
   };
 
-  $("button#go").click(search_form);
-  $('input[name="qs"]').bind("keydown", function(e) {
+  $('button#go').click(search_form);
+  $('input[name="qs"]').bind('keydown', function(e) {
     if (e.keyCode == 13) {
       search_form(e);
     }
   });
 
-  $("#results-list").on("click", ".result-item", function(e) {
-    socket.emit("add_node", $(this).attr("doi"));
+  $('#results-list').on('click', '.result-item', function(e) {
+    socket.emit('add_node', $(this).attr('doi'));
   });
 });
 </script>
