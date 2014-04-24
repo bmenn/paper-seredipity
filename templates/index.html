@@ -1,5 +1,6 @@
 {% extends 'layout.html' %}
 {% block remote %}
+
 <script src='//cdnjs.cloudflare.com/ajax/libs/d3/3.4.5/d3.min.js'></script>
 <script src='//cdnjs.cloudflare.com/ajax/libs/socket.io/0.9.16/socket.io.min.js'></script>
 <script>
@@ -57,6 +58,7 @@ var svg = d3.select('#graph').
     attr('height',height).
     attr('pointer-events','all').
     call(d3.behavior.zoom().scaleExtent([0.25, 1]).on('zoom',rezoom));
+	
 
 var force = d3.layout.force().size([width,300]).
     nodes(nodes).
@@ -66,8 +68,21 @@ var force = d3.layout.force().size([width,300]).
     on('tick', tick);
 
 var container = svg.append('g');
+  container.append("defs")
+	.append("marker")
+	.attr('id', 'arrow')
+	.attr('viewBox', '0 -5 10 10')
+    .attr('refX', 4)
+    .attr("markerWidth", 6)
+    .attr("markerHeight", 6)
+    .attr("orient", "auto")
+	.append('path')
+	.attr("d", "M0,-5L10,0L0,5")
+	.attr('fill', '#000');
 
-var link = container.append('g').selectAll('line');
+
+
+var link = container.append('g').selectAll('path');
 var node = container.append('g').selectAll('circle');
 
 function transform(d) {
@@ -81,9 +96,10 @@ function rezoom() {
 function redraw() {
   node = node.data(nodes);
   link = link.data(links);
-
-  link.enter().append('line').
+  
+  link.enter().append('svg:path').
       attr('class','link').
+	  attr('marker-end', "url(#arrow)"). 
       attr('stroke', '#999');
   link.exit().remove();
 
@@ -99,13 +115,20 @@ function redraw() {
 }
 
 function tick() {
-          link.attr('x1', function(d) { return Math.round(d.source.x); }).
-               attr('y1', function(d) { return Math.round(d.source.y); }).
-               attr('x2', function(d) { return Math.round(d.target.x); }).
-               attr('y2', function(d) { return Math.round(d.target.y); });
+           link.attr('d', function(d) {
+    var deltaX = d.target.x - d.source.x,
+        deltaY = d.target.y - d.source.y,
+        dist = Math.sqrt(deltaX * deltaX + deltaY * deltaY),
+        normX = deltaX / dist,
+        normY = deltaY / dist,
+        targetPadding = d.right ? 17 : 12,
+        targetX = d.target.x - (targetPadding * normX),
+        targetY = d.target.y - (targetPadding * normY);
+    return 'M' + d.source.x + ',' + d.source.y + 'L' + targetX + ',' + targetY;
+  });
 
-          node.attr('cx', function(d) { return (d.x); }).
-              attr('cy', function(d) { return (d.y); }).
+          node.attr('cx', function(d) { return Math.round(d.x); }).
+              attr('cy', function(d) { return Math.round(d.y); }).
               style('fill', function(d) { return colors[d.cluster]; });
         }
 
