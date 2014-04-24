@@ -16,11 +16,13 @@ var $SCRIPT_ROOT = {{ request.script_root|tojson|safe }};
       <div class='form-group form-inline panel-heading'>
         <input type=text class='form-control' placeholder='Search for...' name=qs>
         <button id='go' type=submit class='btn btn-default'>Go</button>
+        <button id='cluster' class='btn btn-default'>Cluster</button>
       </div>
       <span id='results-list' class='list-group'></span>
     </div>
   </div>
   <div class='col-md-7'>
+    <h6 id='status' class='small'>Status</h6>
     <svg style='top:0; left:0; height:300px; width:100%;' id='graph'></svg>
     <div class='panel panel-default'>
       <!-- TODO: Use Jinja2 and Flask dynamically fill publication info -->
@@ -48,13 +50,7 @@ var links = [];
 var width= $('#graph').width();
 var height = $('#graph').height();
 
-var x = d3.scale.linear().
-    domain([0, width]).
-    range([0, width]);
-
-var y = d3.scale.linear().
-    domain([0, height]).
-    range([0, height]);
+var colors = ["#8dd3c7","#ffffb3","#bebada","#fb8072","#80b1d3","#fdb462","#b3de69","#fccde5","#d9d9d9","#bc80bd","#ccebc5","#ffed6f"];
 
 var svg = d3.select('#graph').
     attr('width',width).
@@ -93,6 +89,7 @@ function redraw() {
 
   node.enter().append('circle').
       attr('class', 'node').
+      style('fill', function(d) { return colors[d.cluster]; }).
       attr('r', 10).
       attr('id', function(d) { return d.id; }).
       call(force.drag);
@@ -107,8 +104,9 @@ function tick() {
                attr('x2', function(d) { return Math.round(d.target.x); }).
                attr('y2', function(d) { return Math.round(d.target.y); });
 
-          node.attr('cx', function(d) { return (d.x); })
-              .attr('cy', function(d) { return (d.y); });
+          node.attr('cx', function(d) { return (d.x); }).
+              attr('cy', function(d) { return (d.y); }).
+              style('fill', function(d) { return colors[d.cluster]; });
         }
 
 
@@ -131,6 +129,12 @@ function findNode(id) {
       return nodes[i];
   }
 }
+function findNodeIndex(id) {
+  for (var i in nodes) {
+    if (nodes[i]['id'] == id)
+      return i;
+  }
+}
 
 var socket = io.connect('http://' + document.domain + ':' + location.port
   + '/socket');
@@ -146,6 +150,16 @@ socket.on('add_link', function(d) {
   redraw();
 });
 
+socket.on('cluster', function(d) {
+    for (var n in d.nodes) {
+      var i = findNodeIndex(d.nodes[n]);
+      nodes[i].cluster = d.cluster;
+      }
+      redraw();
+      });
+socket.on('status', function(d) {
+    $('#status').text(d);
+});
 
 var search_form = function(e) {
     $.getJSON($SCRIPT_ROOT + '/search', {
@@ -163,6 +177,10 @@ $('input[name="qs"]').bind('keydown', function(e) {
   }
 });
 
+$('button#cluster').click(function(e) {
+    socket.emit('cluster', 'start');
+    });
+
 $('#results-list').on('click', '.result-item', function(e) {
   socket.emit('add_node', $(this).attr('doi'));
 });
@@ -175,9 +193,7 @@ $('#graph').on('click', '.node', function(e) {
     $('#info-abstract span').text(n.abstract);
 });
 $('#graph').on('dblclick', '.node', function(e) {
-    if (this.id.indexOf('doi:') == 0) {
-      socket.emit('add_links', this.id);
-    }
+    socket.emit('add_links', this.id);
 });
 </script>
 {% endblock %}

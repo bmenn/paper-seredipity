@@ -1,7 +1,6 @@
 from bs4 import BeautifulSoup
 import urllib2
 import urlparse
-import gevent
 
 
 def fetch(doi, get_citations=True):
@@ -22,7 +21,6 @@ def parse_div_result(url, limit=0):
     results = []
 
     for d in divs:
-        gevent.sleep(0)
         title_html = d.h3.a.stripped_strings
         authors_html = d.select('.authors')
         date_html = d.select('.pubyear')
@@ -98,7 +96,6 @@ def parse_summary(url, get_citations=True):
 
     if get_citations:
         for e in citation_html:
-            gevent.sleep(0)
             if ('class' in e.attrs) and ('citation_only' in e['class']):
                 # Publication is not in CiteSeerX. Stuck with cid for identifier
                 start_ind = e['href'].find('cid=')
